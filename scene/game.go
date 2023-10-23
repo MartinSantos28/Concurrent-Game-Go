@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"time"
+	
 )
 
 const (
@@ -34,6 +35,7 @@ type Game struct {
 	
 	Player       *modelos.Player
 	Obstacles    []*modelos.Obstacle
+
 	closeChannel chan struct{}
 	lives        int
 	timeRemaining float64
@@ -43,17 +45,17 @@ type Game struct {
 	hasLose bool 
 }
 
-// Resto de las funciones como NewGame(), Update(), Draw(), etc.
+
 func (g *Game) moveObstacles() {
-    for i := len(g.Obstacles) - 1; i >= 0; i-- {  // Empezamos desde el final para evitar problemas al eliminar
-        obstacle := g.Obstacles[i]
-        obstacle.X += g.obstacleSpeed
-        if obstacle.X > screenWidth {
-            g.score++
-            // Eliminamos el obstáculo si ha salido de la pantalla
-            g.Obstacles = append(g.Obstacles[:i], g.Obstacles[i+1:]...)
-        }
-    }
+	for i := len(g.Obstacles) - 1; i >= 0; i-- {
+		obstacle := g.Obstacles[i]
+		obstacle.Move(g.obstacleSpeed) 
+		if obstacle.IsOutOfBounds(screenWidth) { 
+			g.score++
+			
+			g.Obstacles = append(g.Obstacles[:i], g.Obstacles[i+1:]...)
+		}
+	}
 }
 
 
@@ -64,9 +66,8 @@ func (g *Game) generateObstacles() {
 		case <-g.closeChannel:
 			return
 		default:
-			y := float64(rand.Intn(screenHeight - obstacleSize))
-			newObstacle := modelos.NewObstacle(-obstacleSize, y)  // Crear un nuevo obstáculo
-			g.Obstacles = append(g.Obstacles, newObstacle)  // Agregar el obstáculo al slice
+			newObstacle := modelos.GenerateRandomObstacle(screenWidth, obstacleSize)
+			g.Obstacles = append(g.Obstacles, newObstacle)
 			time.Sleep(time.Second)
 		}
 	}
@@ -74,7 +75,7 @@ func (g *Game) generateObstacles() {
 
 
 func (g *Game) checkCollisions() {
-    for i := len(g.Obstacles) - 1; i >= 0; i-- {  // Iteramos en reversa para evitar problemas al eliminar
+    for i := len(g.Obstacles) - 1; i >= 0; i-- {  
         obstacle := g.Obstacles[i]
         ox, oy := obstacle.X, obstacle.Y
 
@@ -85,7 +86,7 @@ func (g *Game) checkCollisions() {
                 g.hasLose = true
             } else {
                 log.Printf("¡Has sido golpeado! Te quedan %d vidas", g.lives)
-                // Eliminamos el obstáculo con el que colisionó el jugador
+                
                 g.Obstacles = append(g.Obstacles[:i], g.Obstacles[i+1:]...)
             }
         }
@@ -95,20 +96,20 @@ func (g *Game) checkCollisions() {
 
 func (g *Game) Update() error {
 	if !g.hasStarted {
-        if ebiten.IsKeyPressed(ebiten.KeyEnter) {
-            g.hasStarted = true
-            go g.generateObstacles()
-        }
-        return nil
-    }
-
+		if ebiten.IsKeyPressed(ebiten.KeyEnter) {
+			g.hasStarted = true
+			go g.generateObstacles()
+		}
+		return nil
+	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyUp) && g.Player.Y > 0 {
-		g.Player.Y -= playerSpeed
+		g.Player.MoveUp() 
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyDown) && g.Player.Y+playerSize < screenHeight {
-		g.Player.Y += playerSpeed
+		g.Player.MoveDown() 
 	}
+
 	go g.moveObstacles()
 	go g.checkCollisions()
 	g.timeRemaining -= 1.0 / 60.0
@@ -127,11 +128,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
         return
     }
     
-    op := &ebiten.DrawImageOptions{}
-    
-    op.GeoM.Scale(0.3, 0.3)
-    op.GeoM.Translate(g.Player.X, g.Player.Y)
-    screen.DrawImage(playerImage, op)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(0.3, 0.3)
+	op.GeoM.Translate(g.Player.X, g.Player.Y)
+	screen.DrawImage(playerImage, op)
+
 
     if g.hasLose {
         ebitenutil.DebugPrint(screen, "Has perdido")
@@ -141,7 +142,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
     for _, obstacle := range g.Obstacles {
         op := &ebiten.DrawImageOptions{}
         op.GeoM.Scale(0.2, 0.2)
-        op.GeoM.Translate(obstacle.X, obstacle.Y)  // Accede directamente a las propiedades X e Y del obstáculo
+        op.GeoM.Translate(obstacle.X, obstacle.Y)  
         screen.DrawImage(obstacleImage, op)
     }
 
